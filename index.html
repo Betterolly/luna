@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>LUNA — Lunar Atlas</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Fraunces:opsz,wght@9..144,500&display=swap">
+<style>
+:root{--bg:#f2efe9;--bg2:#e6dfd2;--panel:rgba(251,249,245,.95);--ink:#24211c;--mute:#5f594f;--line:#d6cfc2;--acc:#9a4b1b;color-scheme:light;box-sizing:border-box}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#141311;--bg2:#221f1b;--panel:rgba(29,27,24,.95);--ink:#ece7dd;--mute:#a39c8e;--line:#37332c;--acc:#e0915a;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#141311;--bg2:#221f1b;--panel:rgba(29,27,24,.95);--ink:#ece7dd;--mute:#a39c8e;--line:#37332c;--acc:#e0915a;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:radial-gradient(ellipse at 62% 40%,var(--bg2),var(--bg) 70%);color:var(--ink);font:14px/1.5 Inter,system-ui,sans-serif;overflow:hidden}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;outline:none}
+#c:focus-visible{box-shadow:inset 0 0 0 2px var(--acc)}
+.p{position:fixed;background:var(--panel);border:1px solid var(--line);border-radius:8px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+#top{top:calc(12px + env(safe-area-inset-top,0px));left:12px;width:min(350px,calc(100% - 24px));padding:12px;max-height:calc(100% - 80px);overflow:auto}
+h1{font:500 22px Fraunces,Georgia,serif;margin:0 0 8px;letter-spacing:.02em}
+input,select{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:transparent;color:var(--ink);font:inherit;margin-top:4px}
+select option{background:var(--panel);color:var(--ink)}
+input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible,#side:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+button{font:inherit;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:transparent;color:var(--ink);cursor:pointer;min-height:32px}
+button[aria-pressed="true"]{background:var(--acc);color:#fff;border-color:var(--acc)}
+button:disabled{opacity:.5;cursor:not-allowed}
+.row{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+#res{list-style:none;margin:6px 0 0;padding:0;max-height:34vh;overflow:auto}
+#res li{padding:7px 8px;border-radius:5px;cursor:pointer;display:flex;justify-content:space-between;gap:8px}
+#res li[aria-selected="true"],#res li:hover{background:var(--line)}
+.mute{color:var(--mute)}
+#res small{color:var(--mute)}
+.lbl{display:block;margin-top:10px;font-size:13px}
+.num{font-variant-numeric:tabular-nums}
+#leg{margin-top:8px;font-size:12px}
+#leg img{max-width:100%;background:#fff;padding:4px;border-radius:4px;margin-top:6px}
+#mres{margin-top:8px;color:var(--mute);font-size:12px}
+#side{top:calc(12px + env(safe-area-inset-top,0px));right:12px;width:min(370px,calc(100% - 24px));max-height:calc(100% - 60px);overflow:auto;padding:14px;transform:translateX(calc(100% + 24px));transition:transform .3s ease;outline:none}
+#side.open{transform:none}
+#side h2{font:500 20px Fraunces,Georgia,serif;margin:0 0 4px}
+.tag{display:inline-block;font-size:12px;color:var(--acc);margin:2px 0 8px}
+dl{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;margin:8px 0}
+dt{color:var(--mute)}dd{margin:0}
+#side ul{padding-left:18px;margin:4px 0}
+#tip{position:fixed;pointer-events:none;padding:6px 9px;font-size:12px;opacity:0;transition:opacity .12s;max-width:240px}
+#foot{bottom:calc(10px + env(safe-area-inset-bottom,0px));left:12px;right:12px;padding:8px 12px;font-size:12px;color:var(--mute);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.hidden{display:none!important}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
+@media (max-width:640px){#side{top:auto;bottom:60px;max-height:50%}#top{max-height:calc(100% - 150px)}}
+</style></head>
+<body>
+<canvas id="c" tabindex="0" aria-label="Interactive 3D Moon. Drag to rotate, scroll or use plus and minus keys to zoom, arrow keys to rotate."></canvas>
+<div class="p" id="top">
+  <h1>LUNA</h1>
+  <label for="q" class="sr">Search the Moon</label>
+  <input id="q" type="search" placeholder="Search names, missions, or lat, lon" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="res" aria-autocomplete="list">
+  <ul id="res" role="listbox" aria-label="Search results"></ul>
+  <div class="row">
+    <button id="reset">Global view</button>
+    <button id="meas" aria-pressed="false">Measure distance</button>
+    <button id="grid" aria-pressed="false">Grid</button>
+    <button id="shot">Save image</button>
+    <button id="about">About and sources</button>
+  </div>
+  <label class="lbl" for="yr">Missions launched on or before <output id="yv" for="yr">2026</output>
+    <input id="yr" type="range" min="1966" max="2026" value="2026"></label>
+  <label class="sr" for="lsel">Map layer</label>
+  <select id="lsel"></select>
+  <label class="sr" for="cid">Custom layer id</label>
+  <input id="cid" class="hidden" placeholder="Trek layer id, then Enter" autocomplete="off">
+  <div id="leg"></div>
+  <div id="mres" aria-live="polite"></div>
+</div>
+<aside class="p" id="side" tabindex="-1" aria-live="polite"></aside>
+<div class="p" id="tip" role="tooltip"></div>
+<div class="p" id="foot"><span id="st" role="status" aria-live="polite">Starting…</span><span id="ro" class="num"></span></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+"use strict";
+/* ===== PURE-BEGIN (no DOM or THREE; covered by Node tests) ===== */
+const R_KM=1737.4;
+const isNum=v=>typeof v==="number"&&Number.isFinite(v);
+const validCoord=(lat,lon)=>isNum(lat)&&isNum(lon)&&lat>=-90&&lat<=90&&lon>=-180&&lon<=360;
+const normLon=lon=>{const x=((lon+180)%360+360)%360-180;return x===-180&&lon>0?180:x};
+const toVec=(lat,lon,r=1)=>{const a=lat*Math.PI/180,b=lon*Math.PI/180;return[r*Math.cos(a)*Math.sin(b),r*Math.sin(a),r*Math.cos(a)*Math.cos(b)]};
+const vecToLL=v=>{const n=Math.hypot(v[0],v[1],v[2]);if(!(n>0)||!isFinite(n))return null;const x=v[0]/n,y=v[1]/n,z=v[2]/n;return[Math.asin(Math.max(-1,Math.min(1,y)))*180/Math.PI,Math.atan2(x,z)*180/Math.PI]};
+const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+const norm3=v=>Math.hypot(v[0],v[1],v[2]);
+const unit=v=>{const n=norm3(v);return n>1e-12&&isFinite(n)?[v[0]/n,v[1]/n,v[2]/n]:null};
+const centralAngle=(a,b)=>Math.atan2(norm3(cross(a,b)),dot(a,b));
+const greatCircleKm=(a,b)=>R_KM*centralAngle(a,b);
+function slerp(a,b,t){
+  const th=centralAngle(a,b);
+  if(th<1e-9)return a.slice();
+  if(Math.PI-th<1e-6){
+    let p=cross(a,[1,0,0]);if(norm3(p)<1e-6)p=cross(a,[0,1,0]);
+    const q=unit(p),ang=Math.PI*t;
+    return unit([0,1,2].map(i=>a[i]*Math.cos(ang)+q[i]*Math.sin(ang)));
+  }
+  const s=Math.sin(th),w1=Math.sin((1-t)*th)/s,w2=Math.sin(t*th)/s;
+  return unit([0,1,2].map(i=>w1*a[i]+w2*b[i]));
+}
+function parseHash(raw){
+  if(typeof raw!=="string"||raw.length<3||raw.length>300)return null;
+  let s;try{s=decodeURIComponent(raw.replace(/^#/,""))}catch(e){return null}
+  const m=s.match(/^(place|c)=(.+)$/);if(!m)return null;
+  if(m[1]==="place"){const n=m[2].trim();return n.length>0&&n.length<=120?{kind:"place",name:n}:null}
+  const c=m[2].match(/^\s*(-?\d{1,2}(?:\.\d{1,6})?)\s*,\s*(-?\d{1,3}(?:\.\d{1,6})?)\s*$/);
+  if(!c)return null;
+  const lat=+c[1],lon=+c[2];
+  return validCoord(lat,lon)&&lat>=-90&&lat<=90?{kind:"coord",lat,lon:normLon(lon)}:null;
+}
+function pick(p,keys){for(const k of keys){const v=p[k];if(typeof v==="string"&&v.trim())return v.trim()}return null}
+function normaliseUsgs(features){
+  const out=[],skipped={geometry:0,coordinate:0,name:0,duplicate:0},seen=new Set();
+  if(!Array.isArray(features))return{out,skipped,error:"response has no feature list"};
+  for(const f of features){
+    if(!f||typeof f!=="object"){skipped.geometry++;continue}
+    const g=f.geometry;
+    if(!g||g.type!=="Point"||!Array.isArray(g.coordinates)||g.coordinates.length<2){skipped.geometry++;continue}
+    const lon0=g.coordinates[0],lat=g.coordinates[1];
+    if(!isNum(lon0)||!isNum(lat)||!validCoord(lat,lon0)){skipped.coordinate++;continue}
+    const p=f.properties&&typeof f.properties==="object"?f.properties:{};
+    const name=pick(p,["clean_name","name","Name","feature_name","nomenclature"]);
+    if(!name||name.length>120){skipped.name++;continue}
+    const lon=normLon(lon0);
+    const key=name.toLowerCase()+"|"+lat.toFixed(3)+"|"+lon.toFixed(3);
+    if(seen.has(key)){skipped.duplicate++;continue}
+    seen.add(key);
+    const type=pick(p,["feature_type","type","Type","descriptor"])||"Feature (type not given)";
+    const dia=Number(p.diameter??p.Diameter);
+    out.push({k:"g",n:name,t:type.slice(0,80),lat,lon,dia:isNum(dia)&&dia>0&&dia<3000?dia:null,
+      txt:"IAU-approved name from a USGS Gazetteer record. Type and size are as given in that record.",
+      status:"Source-reported: USGS record received by LUNA. Coordinates not independently checked.",
+      src:"USGS Gazetteer of Planetary Nomenclature (live WFS response; field names not verified)",
+      srcUrl:"https://planetarynames.wr.usgs.gov/",acc:"Not stated in response",alt:null,lastVerified:null});
+  }
+  return{out,skipped,error:null};
+}
+const yearOf=d=>d&&d.date?Number(String(d.date).slice(0,4)):null;
+const visibleFor=(d,year)=>d.k!=="m"||yearOf(d)<=year;
+/* ===== PURE-END ===== */
+
+/* ===== DATA: curated records. Every record carries provenance. ===== */
+const UNVER="Unverified: typed by hand in LUNA. Not checked against USGS or any other source.";
+const F=[
+ ["Tycho","Impact crater",-43.31,-11.36,85,"Young, rayed crater in the southern highlands."],
+ ["Copernicus","Impact crater",9.62,-20.08,96,"Rayed crater with terraced walls."],
+ ["Shackleton","Impact crater",-89.9,0,21,"Crater at the south pole. Its interior is largely permanently shadowed. The centre is near the pole, where longitude is poorly defined. Not checked."],
+ ["Clavius","Impact crater",-58.8,-14.4,225,"Large, old highland crater."],
+ ["Aristarchus","Impact crater",23.7,-47.4,40,"Among the brightest large craters."],
+ ["Plato","Impact crater",51.6,-9.4,101,"Dark, lava-flooded floor."],
+ ["Kepler","Impact crater",8.1,-38.0,32,"Rayed crater in Oceanus Procellarum."],
+ ["Ptolemaeus","Impact crater",-9.3,-1.8,153,"Flat-floored walled plain."],
+ ["Theophilus","Impact crater",-11.4,26.4,100,"Well-preserved crater with central peaks."],
+ ["Mare Tranquillitatis","Mare",8.5,31.4,null,"Basaltic plain; Apollo 11 landing region.",["Sea of Tranquility"]],
+ ["Mare Imbrium","Mare",32.8,-15.6,null,"Large basaltic plain inside the Imbrium basin.",["Sea of Showers"]],
+ ["Mare Serenitatis","Mare",28.0,17.5,null,"Basaltic plain; near Apollo 17.",["Sea of Serenity"]],
+ ["Mare Crisium","Mare",17.0,59.1,null,"Roughly circular mare near the eastern limb.",["Sea of Crises"]],
+ ["Mare Nubium","Mare",-21.3,-16.6,null,"Southern near-side mare.",["Sea of Clouds"]],
+ ["Oceanus Procellarum","Mare",18.4,-57.4,null,"Largest lunar mare.",["Ocean of Storms"]],
+ ["Montes Apenninus","Mountain range",18.9,-3.7,null,"Bounds the southeast edge of the Imbrium basin.",["Apennine Mountains"]],
+ ["Montes Alpes","Mountain range",48.4,-3.6,null,"Range on the northern rim of Imbrium.",["Alps Mountains"]],
+ ["Montes Caucasus","Mountain range",38.4,10.0,null,"Range between Imbrium and Serenitatis.",["Caucasus Mountains"]],
+ ["Montes Carpatus","Mountain range",14.4,-24.0,null,"Range on the southern rim of Imbrium.",["Carpathian Mountains"]]
+].map(([n,t,lat,lon,dia,txt,alias])=>({k:"f",n,t,lat,lon,dia,txt,alias:alias||[],status:UNVER,
+  src:"LUNA curated list (typed by hand)",srcUrl:"https://planetarynames.wr.usgs.gov/",acc:"Not stated",alt:null,lastVerified:null}));
+
+const SRC_NSSDC="https://nssdc.gsfc.nasa.gov/planetary/lunar/lunar_sites.html";
+const SRC_LROC="https://www.lroc.asu.edu/data/support/downloads/2016_LROC_Coordinates_of_Robotic_Spacecraft.pdf";
+const SRC_TABLE="https://nssdc.gsfc.nasa.gov/planetary/lunar/lunar_artifact_impacts.html";
+const SRC_UNK="Unverified: typed by hand in LUNA. Not checked against the agency's own record.";
+const SRC_REP=(s)=>"Source-reported: "+s+". Value seen in a search excerpt; not re-checked against the full source.";
+const M=[
+ {k:"m",n:"Apollo 11",t:"Landing (crewed)",org:"USA (NASA)",date:"1969-07-20",lat:0.67416,lon:23.47314,alias:["Sea of Tranquility"],
+  txt:"First crewed landing. Coordinates are the lunar module position.",status:SRC_REP("NSSDC landing table, LM position (LROC-derived)"),src:"NASA NSSDC, Apollo landing sites",srcUrl:SRC_NSSDC,acc:"Not stated in excerpt",alt:null},
+ {k:"m",n:"Apollo 12",t:"Landing (crewed)",org:"USA (NASA)",date:"1969-11-19",lat:-3.01239,lon:-23.42157,alias:[],
+  txt:"Crewed landing in Oceanus Procellarum, near Surveyor 3.",status:SRC_REP("NSSDC, LM position"),src:"NASA NSSDC, Apollo landing sites",srcUrl:SRC_NSSDC,acc:"Not stated in excerpt",alt:"An older NSSDC table gives -3.01381, -23.41930 for the LM. The sources differ."},
+ {k:"m",n:"Apollo 14",t:"Landing (crewed)",org:"USA (NASA)",date:"1971-02-05",lat:-3.675,lon:-17.467,alias:["Fra Mauro"],
+  txt:"Crewed landing in the Fra Mauro region.",status:"Approximate: rounded LM coordinates from a JSC geology report. Not checked against NSSDC.",src:"NASA JSC geology report, Apollo 14",srcUrl:"https://curator.jsc.nasa.gov/lunar/catalogs/apollo14/03geologicsetting.pdf",acc:"Rounded to 0.001 degrees",alt:"NSSDC lists the laser reflector at -3.64422, -17.47880, a different point."},
+ {k:"m",n:"Apollo 15",t:"Landing (crewed); coordinate is the laser reflector",org:"USA (NASA)",date:"1971-07-30",lat:26.1334,lon:3.6285,alias:["Hadley Rille"],
+  txt:"Crewed landing at Hadley Rille, first use of the Lunar Roving Vehicle. The coordinate shown is the laser reflector, not the lunar module.",status:SRC_REP("laser ranging (LLR) reflector position"),src:"Laser ranging values in EPSC 2014 and ISPRS 2012 papers",srcUrl:"https://meetingorganizer.copernicus.org/EPSC2014/EPSC2014-751.pdf",acc:"Laser ranging derived",alt:null},
+ {k:"m",n:"Apollo 16",t:"Landing (crewed)",org:"USA (NASA)",date:"1972-04-21",lat:-8.9734,lon:15.5011,alias:["Descartes Highlands"],
+  txt:"Crewed landing in the Descartes Highlands.",status:SRC_REP("LROC 2016 lunar module coordinates"),src:"LROC 2016 coordinates of human features",srcUrl:"https://www.lroc.asu.edu/data/support/downloads/2016_LROC_Coordinates_of_Human_Features.pdf",acc:"Not stated in excerpt",alt:null},
+ {k:"m",n:"Apollo 17",t:"Landing (crewed)",org:"USA (NASA)",date:"1972-12-11",lat:20.188,lon:30.775,alias:["Taurus-Littrow"],
+  txt:"Crewed landing at Taurus-Littrow, the last crewed landing on the Moon.",status:SRC_REP("NSSDC Apollo mission table"),src:"NASA NSSDC, Apollo landing table",srcUrl:"https://webarchive.library.unt.edu/web/20130224064823/http:/nssdc.gsfc.nasa.gov/planetary/lunar/apolloland.html",acc:"Not stated in excerpt",alt:null},
+ {k:"m",n:"Luna 9",t:"Landing (robotic)",org:"USSR",date:"1966-02-03",lat:7.08,lon:-64.37,alias:[],
+  txt:"First soft landing on the Moon.",status:SRC_UNK,src:"LUNA curated list (typed by hand)",srcUrl:SRC_NSSDC,acc:"Not stated",alt:null},
+ {k:"m",n:"Luna 16",t:"Landing (sample return)",org:"USSR",date:"1970-09-20",lat:-0.5137,lon:56.3638,alias:[],
+  txt:"Soft landing in Mare Fecunditatis with robotic sample return.",status:SRC_REP("LROC 2016 spacecraft coordinates"),src:"LROC 2016 coordinates of robotic spacecraft",srcUrl:SRC_LROC,acc:"Not stated in excerpt",alt:"An older NASA list gives -0.68, 56.30."},
+ {k:"m",n:"Luna 17",t:"Landing (rover carrier)",org:"USSR",date:"1970-11-17",lat:38.23764,lon:-35.00163,alias:[],
+  txt:"Soft landing that delivered Lunokhod 1.",status:SRC_REP("LROC 2016 spacecraft coordinates"),src:"LROC 2016 coordinates of robotic spacecraft",srcUrl:SRC_LROC,acc:"Not stated in excerpt",alt:null},
+ {k:"m",n:"Lunokhod 1",t:"Rover (historical last-known location)",org:"USSR",date:"1970-11-17",lat:38.3150,lon:-35.0081,alias:["Lunokhod"],
+  txt:"First robotic rover to operate on another world. Last operational in 1971.",status:SRC_REP("LROC 2016 rover coordinates"),src:"LROC 2016 coordinates of robotic spacecraft",srcUrl:SRC_LROC,acc:"Not stated in excerpt",alt:null,
+  live:"None. Historical last-known location only. LUNA has no live tracking for this rover."},
+ {k:"m",n:"Luna 20",t:"Landing (sample return)",org:"USSR",date:"1972-02-21",lat:3.7863,lon:56.6242,alias:[],
+  txt:"Soft landing with robotic sample return.",status:SRC_REP("LROC 2016 spacecraft coordinates"),src:"LROC 2016 coordinates of robotic spacecraft",srcUrl:SRC_LROC,acc:"Not stated in excerpt",alt:"A secondary list gives 3.57 N, 56.5 E. The sources differ."},
+ {k:"m",n:"Luna 21",t:"Landing (rover carrier)",org:"USSR",date:"1973-01-15",lat:26.0027,lon:30.4078,alias:[],
+  txt:"Soft landing that delivered Lunokhod 2 to Le Monnier crater.",status:SRC_REP("LROC 2016 spacecraft coordinates"),src:"LROC 2016 coordinates of robotic spacecraft",srcUrl:SRC_LROC,acc:"Not stated in excerpt",alt:null},
+ {k:"m",n:"Lunokhod 2",t:"Rover (historical last-known location)",org:"USSR",date:"1973-01-15",lat:25.8323,lon:30.9222,alias:["Lunokhod"],
+  txt:"Rover that operated from Le Monnier crater.",status:SRC_REP("LROC 2016 rover coordinates"),src:"LROC 2016 coordinates of robotic spacecraft",srcUrl:SRC_LROC,acc:"Not stated in excerpt",alt:null,
+  live:"None. Historical last-known location only. LUNA has no live tracking for this rover."},
+ {k:"m",n:"Chang'e 3",t:"Landing (rover carrier)",org:"China (CNSA)",date:"2013-12-14",lat:44.1214,lon:-19.5117,alias:[],
+  txt:"Soft landing in Mare Imbrium.",status:SRC_REP("LROC 2016 spacecraft coordinates"),src:"LROC 2016 coordinates of robotic spacecraft",srcUrl:SRC_LROC,acc:"Not stated in excerpt",alt:null},
+ {k:"m",n:"Yutu (Chang'e 3 rover)",t:"Rover (historical last-known location)",org:"China (CNSA)",date:"2013-12-14",lat:44.1208,lon:-19.5122,alias:["Yutu"],
+  txt:"Rover deployed from Chang'e 3.",status:SRC_REP("LROC 2016 rover coordinates"),src:"LROC 2016 coordinates of robotic spacecraft",srcUrl:SRC_LROC,acc:"Not stated in excerpt",alt:null,
+  live:"None. Historical last-known location only. LUNA has no live tracking for this rover."},
+ {k:"m",n:"Chang'e 4",t:"Landing (rover carrier)",org:"China (CNSA)",date:"2019-01-03",lat:-45.4561,lon:177.5885,alias:["Von Karman crater"],
+  txt:"First soft landing on the far side of the Moon.",status:SRC_REP("LROC and NSSDC tables"),src:"NSSDC lunar artifact and landing table",srcUrl:SRC_TABLE,acc:"Not stated",alt:null},
+ {k:"m",n:"Yutu-2 (Chang'e 4 rover)",t:"Rover (historical last-known location)",org:"China (CNSA)",date:"2019-01-03",lat:-45.46,lon:177.59,alias:["Yutu 2"],
+  txt:"Rover deployed from Chang'e 4 on the far side.",status:"Approximate: two-decimal value from the NSSDC table.",src:"NSSDC lunar artifact and landing table",srcUrl:SRC_TABLE,acc:"Two decimal places",alt:null,
+  live:"None. Historical last-known location only. LUNA has no live tracking for this rover."},
+ {k:"m",n:"Chang'e 5",t:"Landing (sample return)",org:"China (CNSA)",date:"2020-12-01",lat:43.0576,lon:-51.9161,alias:[],
+  txt:"Soft landing and sample return in Oceanus Procellarum.",status:SRC_REP("NSSDC lunar artifact table"),src:"NSSDC lunar artifact and landing table",srcUrl:SRC_TABLE,acc:"Not stated",alt:null},
+ {k:"m",n:"Chang'e 6",t:"Landing (sample return)",org:"China (CNSA)",date:"2024-06-01",lat:-41.6385,lon:-153.9852,alias:["South Pole-Aitken basin"],
+  txt:"Far-side landing in the South Pole–Aitken basin, with sample return.",status:SRC_REP("NSSDC lunar artifact table"),src:"NSSDC lunar artifact and landing table",srcUrl:SRC_TABLE,acc:"Not stated",alt:null},
+ {k:"m",n:"Chandrayaan-3 (Vikram lander)",t:"Landing (lander and rover)",org:"India (ISRO)",date:"2023-08-23",lat:-69.373,lon:32.319,alias:["Shiv Shakti Point","Pragyan"],
+  txt:"Soft landing near the lunar south pole, at the Shiv Shakti point. Pragyan rover deployed.",status:"Unverified: typed by hand in LUNA. ISRO's own record has not been checked.",src:"LUNA curated list (typed by hand)",srcUrl:"https://www.isro.gov.in/",acc:"Not stated",alt:null},
+ {k:"m",n:"SLIM",t:"Landing (robotic)",org:"Japan (JAXA)",date:"2024-01-19",lat:-13.32,lon:25.25,alias:[],
+  txt:"JAXA lander that touched down near Shioli crater.",status:"Unverified: typed by hand in LUNA. JAXA's own record has not been checked.",src:"LUNA curated list (typed by hand)",srcUrl:"https://global.jaxa.jp/",acc:"Not stated",alt:null},
+ {k:"m",n:"Blue Ghost 1",t:"Landing (commercial)",org:"USA (Firefly)",date:"2025-03-02",lat:18.562,lon:61.810,alias:[],
+  txt:"Commercial lander.",status:SRC_REP("NSSDC lunar artifact table"),src:"NSSDC lunar artifact and landing table",srcUrl:SRC_TABLE,acc:"Not stated",alt:null}
+].map(m=>({lastVerified:null,...m}));
+
+let D=[...F,...M];
+const MAX_USGS=20000;
+
+/* ===== DOM HELPERS ===== */
+const $=id=>document.getElementById(id);
+function el(tag,attrs={},kids=[]){
+  const n=document.createElement(tag);
+  for(const[k,v]of Object.entries(attrs)){
+    if(v==null||v===false)continue;
+    if(k==="text")n.textContent=String(v);
+    else if(k.startsWith("on")&&typeof v==="function")n.addEventListener(k.slice(2),v);
+    else n.setAttribute(k,v===true?"":String(v));
+  }
+  for(const c of kids)if(c!=null)n.append(c);
+  return n;
+}
+const setSt=t=>{$("st").textContent=t};
+const fmtLL=(v,p,n)=>`${Math.abs(v).toFixed(4)}° ${v<0?n:p}`;
+const safeHref=u=>typeof u==="string"&&/^https:\/\//.test(u)?u:null;
+let RM=matchMedia("(prefers-reduced-motion: reduce)").matches;
+matchMedia("(prefers-reduced-motion: reduce)").addEventListener("change",e=>{RM=e.matches});
+
+/* ===== 3D (only created if WebGL and Three.js load) ===== */
+const cv=$("c");
+let W=null;
+let sel=null,yearNow=2026,measure=false,mPts=[],mObjs=[],mLine=null,curLayer=null,texSeq=0,
+    flyState=null,autoSpin=true,drag=null,moved=0,ctxLost=false,looping=false,lastT=0,needFrame=false,hoverScheduled=false,hoverAt=null;
+
+function placeholderTex(){
+  const c=document.createElement("canvas");c.width=512;c.height=256;const x=c.getContext("2d");
+  x.fillStyle="#8d8a84";x.fillRect(0,0,512,256);
+  let s=7;const r=()=>(s=(s*16807)%2147483647)/2147483647;
+  for(let i=0;i<1500;i++){const v=110+(r()*60|0);x.fillStyle=`rgba(${v},${v-2},${v-6},.25)`;x.beginPath();x.arc(r()*512,r()*256,1+r()*r()*6,0,7);x.fill()}
+  return new THREE.CanvasTexture(c);
+}
+function makeGrid(){
+  const v=[];
+  for(let la=-60;la<=60;la+=30)for(let lo=-180;lo<180;lo+=5)v.push(new THREE.Vector3(...toVec(la,lo,1.003)),new THREE.Vector3(...toVec(la,lo+5,1.003)));
+  for(let lo=-180;lo<180;lo+=30)for(let la=-90;la<90;la+=5)v.push(new THREE.Vector3(...toVec(la,lo,1.003)),new THREE.Vector3(...toVec(la+5,lo,1.003)));
+  const l=new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(v),new THREE.LineBasicMaterial({color:0xffffff,transparent:true,opacity:.3}));
+  l.visible=false;return l;
+}
+function initWebGL(){
+  if(typeof THREE==="undefined")return null;
+  let ren;
+  try{ren=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true})}catch(e){return null}
+  ren.setClearColor(0x000000,0);
+  ren.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+  const sc=new THREE.Scene(),cam=new THREE.PerspectiveCamera(40,1,.05,50);cam.position.z=3.6;
+  const g=new THREE.Group();sc.add(g);
+  const moon=new THREE.Mesh(new THREE.SphereGeometry(1,128,64),new THREE.MeshStandardMaterial({map:placeholderTex(),roughness:1}));
+  g.add(moon);
+  sc.add(new THREE.AmbientLight(0xffffff,.35));
+  const sun=new THREE.DirectionalLight(0xfff4e6,1.4);sun.position.set(-3,1.5,4);sc.add(sun);
+  const hi=new THREE.Mesh(new THREE.SphereGeometry(.028,16,12),new THREE.MeshBasicMaterial({color:0xe0915a}));
+  hi.visible=false;g.add(hi);
+  const grid=makeGrid();g.add(grid);
+  return{ren,sc,cam,g,moon,hi,grid,ray:new THREE.Raycaster(),featPts:null,missPts:null,featList:[],missList:[]};
+}
+function buildPoints(list,color,size){
+  const pos=new Float32Array(list.length*3);
+  list.forEach((d,i)=>pos.set(toVec(d.lat,d.lon,1.006),i*3));
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute("position",new THREE.BufferAttribute(pos,3));
+  return new THREE.Points(geo,new THREE.PointsMaterial({color,size,sizeAttenuation:false}));
+}
+function swapPoints(key,list,color,size){
+  if(!W)return;
+  const old=W[key];
+  if(old){W.g.remove(old);old.geometry.dispose();old.material.dispose()}
+  W[key]=buildPoints(list,color,size);W.g.add(W[key]);
+}
+function rebuildFeatures(){
+  if(!W)return;
+  W.featList=D.filter(d=>d.k==="f"||d.k==="g");
+  swapPoints("featPts",W.featList,0xd9d2c4,3);
+  requestFrame();
+}
+function rebuildMissions(){
+  if(!W)return;
+  W.missList=M.filter(m=>visibleFor(m,yearNow));
+  swapPoints("missPts",W.missList,0xe0915a,6);
+  requestFrame();
+}
+function screenPt(x,y){const r=cv.getBoundingClientRect();return new THREE.Vector2((x-r.left)/r.width*2-1,-(y-r.top)/r.height*2+1)}
+function pickRecord(x,y){
+  if(!W)return null;
+  W.ray.setFromCamera(screenPt(x,y),W.cam);
+  W.ray.params.Points.threshold=.04;
+  const objs=[W.featPts,W.missPts].filter(Boolean);
+  const camDir=W.cam.position.clone().normalize();
+  for(const h of W.ray.intersectObjects(objs,false)){
+    const front=h.point.clone().normalize().dot(camDir)>.15;
+    if(!front)continue;
+    const list=h.object===W.missPts?W.missList:W.featList;
+    return list[h.index]||null;
+  }
+  return null;
+}
+function surfaceVec(x,y){
+  if(!W)return null;
+  W.g.updateMatrixWorld(true);
+  W.ray.setFromCamera(screenPt(x,y),W.cam);
+  const h=W.ray.intersectObject(W.moon,false)[0];
+  if(!h)return null;
+  const local=W.g.worldToLocal(h.point.clone());
+  return unit([local.x,local.y,local.z]);
+}
+function showHi(d){
+  if(!W)return;
+  if(!d){W.hi.visible=false;return}
+  W.hi.visible=true;
+  const v=toVec(d.lat,d.lon,1.012);W.hi.position.set(v[0],v[1],v[2]);
+}
+function flyTo(lat,lon,z){
+  if(!W)return;
+  const dir=unit(toVec(lat,lon,1));if(!dir)return;
+  const target=new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(...dir),new THREE.Vector3(0,0,1));
+  const zz=Math.min(6,Math.max(1.25,z));
+  if(RM){W.g.quaternion.copy(target);W.cam.position.z=zz;requestFrame();return}
+  flyState={q0:W.g.quaternion.clone(),q1:target,z0:W.cam.position.z,z1:zz,t:0};
+  requestFrame();
+}
+const ease=t=>t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
+function requestFrame(){
+  needFrame=true;
+  if(!looping&&!document.hidden&&W){looping=true;requestAnimationFrame(tick)}
+}
+function tick(t){
+  const dt=Math.min((t-(lastT||t))/1000,.05);lastT=t;
+  let moving=false;
+  if(flyState){
+    flyState.t=Math.min(1,flyState.t+dt/1.6);
+    const e=ease(flyState.t);
+    W.g.quaternion.slerpQuaternions(flyState.q0,flyState.q1,e);
+    W.cam.position.z=flyState.z0+(flyState.z1-flyState.z0)*e;
+    moving=true;
+    if(flyState.t>=1)flyState=null;
+  }else if(autoSpin&&!RM&&!drag&&!sel){
+    W.g.rotation.y+=dt*.03;moving=true;
+  }
+  if((needFrame||moving)&&!ctxLost){W.ren.render(W.sc,W.cam);needFrame=false}
+  if(moving)requestAnimationFrame(tick);else looping=false;
+}
+function resize(){
+  if(!W)return;
+  const w=window.innerWidth,h=window.innerHeight;
+  W.ren.setSize(w,h,false);W.cam.aspect=w/h;W.cam.updateProjectionMatrix();requestFrame();
+}
+
+/* ===== Texture loading: each zoom level is tracked on its own ===== */
+const TREK="https://trek.nasa.gov/tiles/Moon/EQ/";
+const LAYERS={
+ wac:{label:"Imagery: LRO WAC mosaic",id:"LRO_WAC_Mosaic_Global_303ppd_v02",ext:["jpg","png"],kind:"Measured imagery (mosaic)",inst:"LROC Wide Angle Camera",src:"NASA Moon Trek",note:"Reflectance image. Lighting differs between the source images."},
+ lola:{label:"Colour elevation relief (LOLA)",id:"LRO_LOLA_ClrShade_Global_128ppd_v04",ext:["png","jpg"],kind:"Derived from laser altimetry, shown as a colour image",inst:"Lunar Orbiter Laser Altimeter (LOLA)",src:"NASA Moon Trek / USGS",note:"This is a colour image of elevation. It is draped on a smooth sphere like any other image. The 3D shape is NOT changed, so this is not terrain.",legend:true},
+ feo:{label:"Composition: Clementine FeO estimate",id:"Clem_UVVIS_FeO_Clr_Global_152ppd",ext:["png","jpg"],kind:"Derived estimate, not a direct measurement",inst:"Clementine UVVIS camera",src:"NASA Moon Trek",note:"Colour-coded estimate of iron oxide content. Check the metadata before quoting values.",legend:true}
+};
+const tileURL=(L,z,r,c,e)=>`${TREK}${L.id}/1.0.0/default/default028mm/${z}/${r}/${c}.${e}`;
+function loadImage(url,ms){
+  return new Promise(res=>{
+    const im=new Image();im.crossOrigin="anonymous";
+    const to=setTimeout(()=>{im.src="";res(null)},ms);
+    im.onload=()=>{clearTimeout(to);res(im)};
+    im.onerror=()=>{clearTimeout(to);res(null)};
+    im.src=url;
+  });
+}
+async function fetchTile(L,z,r,c){
+  for(const e of L.ext){const im=await loadImage(tileURL(L,z,r,c,e),12000);if(im)return im}
+  return null;
+}
+async function pool(items,n,fn){
+  let i=0;
+  await Promise.all(Array.from({length:n},async()=>{while(i<items.length){const k=i++;await fn(items[k],k)}}));
+}
+function applyTexture(tex){
+  const m=W.moon.material;const old=m.map;
+  m.map=tex;m.needsUpdate=true;
+  if(old&&old!==tex)old.dispose();
+  requestFrame();
+}
+async function loadLayer(L){
+  if(!W||!L)return;
+  const seq=++texSeq;curLayer=L;showLayer(L);
+  setSt(`Loading ${L.label} from NASA Moon Trek…`);
+  const report=[];let best=null;
+  for(const z of [1,3]){
+    const cols=2**(z+1),rows=2**z,total=cols*rows,CW=4096,CH=2048;
+    const cvs=document.createElement("canvas");cvs.width=CW;cvs.height=CH;
+    const x=cvs.getContext("2d");x.fillStyle="#6f6c66";x.fillRect(0,0,CW,CH);
+    const jobs=[];for(let r=0;r<rows;r++)for(let c=0;c<cols;c++)jobs.push([r,c]);
+    let ok=0;
+    await pool(jobs,6,async([r,c])=>{
+      const im=await fetchTile(L,z,r,c);
+      if(seq!==texSeq||!im)return;
+      ok++;x.drawImage(im,c*CW/cols,r*CH/rows,CW/cols,CH/rows);
+    });
+    if(seq!==texSeq)return;
+    report.push(`zoom ${z}: ${ok} of ${total} tiles`);
+    const cover=ok/total;
+    if(ok>0&&(!best||cover>=.9)){
+      const tex=new THREE.CanvasTexture(cvs);
+      tex.anisotropy=W.ren.capabilities.getMaxAnisotropy?W.ren.capabilities.getMaxAnisotropy():1;
+      applyTexture(tex);
+      best={z,complete:ok===total};
+    }
+  }
+  if(seq!==texSeq)return;
+  if(!best){setSt(`${L.label}: no tiles could be loaded (${report.join("; ")}). The previous imagery is still shown.`);return}
+  setSt(`${L.label}: ${best.complete?"all tiles loaded":"partial coverage, grey areas have no tile"} at zoom ${best.z} (${report.join("; ")}).`);
+}
+function showLayer(L){
+  const leg=$("leg");leg.replaceChildren();
+  leg.append(el("strong",{text:L.label}),el("br"),el("span",{text:"Instrument: "+(L.inst||"Not stated")}),el("br"),
+    el("span",{text:"Data type: "+(L.kind||"Unverified")}),el("br"),el("span",{text:"Source: "+(L.src||"NASA Moon Trek")}),el("br"),
+    el("span",{class:"mute",text:L.note||""}));
+  if(L.legend){
+    const meta="https://pub.lmmp.nasa.gov/LMMP/rest/dbxml/fgdc/html?label="+encodeURIComponent(L.id);
+    const img=el("img",{alt:"Colour legend for "+L.label,src:meta.replace("/html?","/legend/stream?")});
+    img.addEventListener("error",()=>img.remove());
+    leg.append(el("br"),img,el("br"),el("a",{href:meta,target:"_blank",rel:"noopener",text:"Layer metadata (NASA LMMP)"}));
+  }
+}
+function setupLayers(){
+  const lsel=$("lsel");
+  lsel.replaceChildren(...Object.entries(LAYERS).map(([k,L])=>el("option",{value:k,text:L.label})),
+    el("option",{value:"custom",text:"Custom Trek layer…"}),
+    ...["Temperature (Diviner)","Hydrogen (LEND)","Gravity (GRAIL)","Illumination"].map(t=>el("option",{disabled:true,text:t+": layer id not verified"})));
+  lsel.addEventListener("change",()=>{
+    const v=lsel.value;
+    $("cid").classList.toggle("hidden",v!=="custom");
+    if(v!=="custom")loadLayer(LAYERS[v]);
+  });
+  $("cid").addEventListener("keydown",e=>{
+    if(e.key!=="Enter")return;
+    const v=e.target.value.trim();
+    if(!/^[A-Za-z0-9_.-]{3,80}$/.test(v)){setSt("A layer id may contain only letters, digits, underscore, dot and hyphen (3 to 80 characters).");return}
+    loadLayer({label:"Custom: "+v,id:v,ext:["png","jpg"],kind:"Unverified",inst:"Not stated",src:"User-specified NASA Moon Trek layer; LUNA has not checked it",note:"Check the layer's metadata on trek.nasa.gov/moon before quoting anything from it."});
+  });
+}
+
+/* ===== Gazetteer (live USGS) ===== */
+const WFS="https://astrocloud.wr.usgs.gov/dataset/data/nomenclature/MOON/WFS?service=WFS&version=1.1.0&request=GetFeature&outputFormat=application/json";
+async function loadGazetteer(){
+  if(navigator.onLine===false){setSt("Offline: live USGS gazetteer not loaded. Curated records only.");applyHash();return}
+  const ac=new AbortController(),to=setTimeout(()=>ac.abort(),30000);
+  try{
+    const r=await fetch(WFS,{signal:ac.signal});
+    if(!r.ok)throw new Error("HTTP "+r.status);
+    const j=await r.json();
+    const{out,skipped,error}=normaliseUsgs(j&&j.features);
+    if(error)throw new Error(error);
+    const have=new Set(D.map(d=>d.n.toLowerCase()));
+    const fresh=out.filter(d=>!have.has(d.n.toLowerCase())).slice(0,MAX_USGS);
+    fresh.forEach(d=>D.push(d));
+    rebuildFeatures();
+    const sk=Object.entries(skipped).filter(([,v])=>v).map(([k,v])=>`${v} ${k}`).join(", ");
+    setSt(`Live USGS gazetteer: ${fresh.length} features added${sk?` (skipped: ${sk})`:""}. Endpoint and field names not verified by LUNA.`);
+  }catch(e){
+    setSt(`Live USGS gazetteer unavailable (${e.name==="AbortError"?"timed out":e.message}). Curated records only.`);
+  }finally{clearTimeout(to)}
+  applyHash();
+}
+
+/* ===== Selection, panel, year filter, URL ===== */
+function coordRec(lat,lon){
+  return{k:"c",n:`${fmtLL(lat,"N","S")}, ${fmtLL(lon,"E","W")}`,t:"Coordinates",lat,lon,alias:[],
+    txt:"Coordinates entered or linked. This is not a named feature.",status:"User-entered coordinates; not a named feature",src:"User input",srcUrl:"",acc:"As entered",alt:null,lastVerified:null};
+}
+function panel(d){
+  const s=$("side");
+  const rows=[];
+  const add=(k,v)=>{if(v!=null&&v!=="")rows.push(el("dt",{text:k}),el("dd",{text:String(v)}))};
+  add("Latitude",fmtLL(d.lat,"N","S"));
+  add("Longitude",fmtLL(d.lon,"E","W"));
+  add("Agency",d.org);
+  add("Date",d.date);
+  add("Diameter",d.dia?`${d.dia} km (approximate)`:null);
+  add("Elevation","Unavailable: no elevation data loaded");
+  add("Coordinate status",d.status);
+  add("Accuracy",d.acc);
+  add("Alternative values",d.alt);
+  add("Live position",d.live||null);
+  add("Last verified by LUNA","Not verified by LUNA");
+  const near=nearest(d,4);
+  const close=el("button",{"aria-label":"Close panel",text:"✕",onclick:()=>closePanel("Panel closed.")});
+  close.style.float="right";
+  const copy=el("button",{text:"Copy link to this place",onclick:()=>{
+    const done=()=>{copy.textContent="Link copied"};
+    if(navigator.clipboard)navigator.clipboard.writeText(location.href).then(done,()=>{copy.textContent="Copy failed; select the address bar"});
+    else copy.textContent="Copy not available here";
+  }});
+  const link=safeHref(d.srcUrl);
+  s.replaceChildren(close,el("h2",{text:d.n,tabindex:"-1"}),el("div",{class:"tag",text:d.t}),
+    el("p",{text:d.txt||""}),el("dl",{class:"num"},rows),
+    link?el("p",{},[el("a",{href:link,target:"_blank",rel:"noopener",text:"Source: "+(d.src||"link")})]):el("p",{class:"mute",text:"Source: "+(d.src||"Not stated")}),
+    copy,
+    el("strong",{text:"Nearby in this atlas"}),
+    el("ul",{},near.map(n=>el("li",{},[el("button",{text:n.x.n,onclick:()=>select(n.x,{push:true})}),el("small",{class:"num",text:" "+n.km.toFixed(0)+" km"})]))));
+  s.classList.add("open");
+  s.addEventListener("keydown",e=>{if(e.key==="Escape")closePanel("Panel closed.")});
+  s.focus({preventScroll:true});
+}
+function nearest(d,k){
+  const best=[];
+  for(const x of D){
+    if(x===d||x.lat==null||!visibleFor(x,yearNow))continue;
+    const km=greatCircleKm(toVec(d.lat,d.lon),toVec(x.lat,x.lon));
+    if(!isFinite(km))continue;
+    if(best.length<k||km<best[best.length-1].km){
+      best.push({x,km});best.sort((a,b)=>a.km-b.km);if(best.length>k)best.pop();
+    }
+  }
+  return best;
+}
+function select(d,opts={}){
+  if(!d)return;
+  if(d.k==="m"&&!visibleFor(d,yearNow)){
+    yearNow=yearOf(d);$("yr").value=String(yearNow);$("yv").textContent=String(yearNow);rebuildMissions();
+  }
+  sel=d;showHi(d);
+  flyTo(d.lat,d.lon,Math.min(W?W.cam.position.z:3.6,2));
+  panel(d);
+  const h=d.k==="c"?`#c=${d.lat.toFixed(4)},${d.lon.toFixed(4)}`:`#place=${encodeURIComponent(d.n)}`;
+  try{
+    if(opts.push===false)history.replaceState(null,"",h);
+    else if(location.hash!==h)history.pushState(null,"",h);
+  }catch(e){}
+  if(!opts.quiet)setSt(`Selected ${d.n}. ${d.status}`);
+}
+function closePanel(msg){
+  sel=null;showHi(null);
+  $("side").classList.remove("open");
+  try{history.replaceState(null,"",location.pathname+location.search)}catch(e){}
+  if(msg)setSt(msg);
+  if(cv)cv.focus({preventScroll:true});
+  requestFrame();
+}
+function applyHash(){
+  const h=location.hash;
+  if(!h||h==="#"){if(sel)closePanel();return}
+  const p=parseHash(h);
+  if(!p){setSt("That link is not recognised, so the current view is unchanged.");return}
+  if(p.kind==="coord"){select(coordRec(p.lat,p.lon),{push:false,quiet:true});return}
+  const d=D.find(x=>x.n.toLowerCase()===p.name.toLowerCase());
+  if(!d){setSt(`No record named "${p.name}" is loaded.`);return}
+  if(sel!==d)select(d,{push:false,quiet:true});
+}
+function applyYear(y){
+  yearNow=y;$("yv").textContent=String(y);
+  rebuildMissions();
+  const hidden=M.filter(m=>!visibleFor(m,y)).length;
+  setSt(`Showing missions launched on or before ${y}. ${hidden} hidden.`);
+  if(sel&&sel.k==="m"&&!visibleFor(sel,y))closePanel(`${sel.n} launched after ${y}, so it was closed.`);
+  if(q.value.trim())runSearch();
+}
+
+/* ===== Search ===== */
+const q=$("q"),resUl=$("res");
+let results=[],activeIdx=-1;
+function matches(d,s){
+  return d.n.toLowerCase().includes(s)||(d.t||"").toLowerCase().includes(s)||(d.org||"").toLowerCase().includes(s)||(d.alias||[]).some(a=>a.toLowerCase().includes(s));
+}
+function parseCoordQuery(str){
+  const m=str.match(/^\s*(-?\d{1,2}(?:\.\d+)?)\s*[,\s]\s*(-?\d{1,3}(?:\.\d+)?)\s*$/);
+  if(!m)return null;
+  const lat=+m[1],lon=+m[2];
+  return validCoord(lat,lon)&&lat>=-90&&lat<=90?{lat,lon:normLon(lon)}:null;
+}
+function runSearch(){
+  const raw=q.value,s=raw.trim().toLowerCase();
+  const c=parseCoordQuery(raw);
+  let hidden=0;
+  if(c)results=[coordRec(c.lat,c.lon)];
+  else if(s){
+    results=D.filter(d=>visibleFor(d,yearNow)&&matches(d,s)).slice(0,25);
+    hidden=D.filter(d=>!visibleFor(d,yearNow)&&matches(d,s)).length;
+  }else results=[];
+  activeIdx=results.length?0:-1;
+  resUl.replaceChildren(...results.map((d,i)=>el("li",{role:"option",id:"r"+i,"aria-selected":i===activeIdx?"true":"false",
+    onclick:()=>chooseResult(i)},[el("span",{text:d.n}),el("small",{text:d.t})])));
+  q.setAttribute("aria-expanded",results.length?"true":"false");
+  if(hidden)setSt(`${hidden} matching record${hidden>1?"s are":" is"} hidden by the year filter (set to ${yearNow}).`);
+}
+function chooseResult(i){
+  const d=results[i];if(!d)return;
+  select(d,{push:true});
+  resUl.replaceChildren();results=[];q.setAttribute("aria-expanded","false");
+}
+function moveActive(delta){
+  if(!results.length)return;
+  activeIdx=(activeIdx+delta+results.length)%results.length;
+  [...resUl.children].forEach((li,i)=>li.setAttribute("aria-selected",i===activeIdx?"true":"false"));
+  q.setAttribute("aria-activedescendant","r"+activeIdx);
+}
+
+/* ===== Measurement ===== */
+function setMres(t){$("mres").textContent=t}
+function clearMeasure(){
+  for(const o of mObjs){if(W)W.g.remove(o);o.geometry.dispose();o.material.dispose()}
+  mObjs=[];mPts=[];
+  if(mLine){if(W)W.g.remove(mLine);mLine.geometry.dispose();mLine.material.dispose();mLine=null}
+  setMres(measure?"Pick a first point on the surface.":"");
+  requestFrame();
+}
+function addMeasurePoint(v){
+  if(!W||!v)return;
+  if(mPts.length>=2)clearMeasure();
+  mPts.push(v);
+  const m=new THREE.Mesh(new THREE.SphereGeometry(.022,14,10),new THREE.MeshBasicMaterial({color:0xffffff}));
+  m.position.set(v[0]*1.012,v[1]*1.012,v[2]*1.012);
+  W.g.add(m);mObjs.push(m);
+  if(mPts.length===1)setMres("First point set. Pick a second point.");
+  else drawMeasure();
+  requestFrame();
+}
+function drawMeasure(){
+  if(mLine){W.g.remove(mLine);mLine.geometry.dispose();mLine.material.dispose();mLine=null}
+  const[a,b]=mPts;
+  const km=greatCircleKm(a,b);
+  const pts=[];
+  for(let i=0;i<=64;i++){const v=slerp(a,b,i/64);if(v)pts.push(new THREE.Vector3(v[0]*1.008,v[1]*1.008,v[2]*1.008))}
+  mLine=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:0xe0915a}));
+  W.g.add(mLine);
+  const ll=v=>{const p=vecToLL(v);return p?`${p[0].toFixed(3)}°, ${p[1].toFixed(3)}°`:"n/a"};
+  setMres(`Great-circle distance ${km.toFixed(1)} km (${(km*0.621371).toFixed(1)} mi), on a sphere of radius ${R_KM} km. Endpoints: ${ll(a)}; ${ll(b)}. Not a terrain-following route.`);
+}
+
+/* ===== Pointer, keyboard, wheel ===== */
+function onTap(e){
+  if(measure){const v=surfaceVec(e.clientX,e.clientY);if(v)addMeasurePoint(v);return}
+  const d=pickRecord(e.clientX,e.clientY);
+  if(d)select(d,{push:true});
+}
+function runHover(){
+  hoverScheduled=false;
+  if(!hoverAt||drag)return;
+  const tip=$("tip");
+  const d=pickRecord(hoverAt.x,hoverAt.y);
+  if(d){
+    tip.replaceChildren(el("strong",{text:d.n}),el("br"),el("span",{class:"mute",text:d.t}));
+    tip.style.left=(hoverAt.x+14)+"px";tip.style.top=(hoverAt.y+14)+"px";tip.style.opacity="1";
+    cv.style.cursor=measure?"crosshair":"pointer";
+  }else{tip.style.opacity="0";cv.style.cursor=measure?"crosshair":"grab"}
+  const v=surfaceVec(hoverAt.x,hoverAt.y);
+  const ll=v?vecToLL(v):null;
+  $("ro").textContent=ll?`${fmtLL(ll[0],"N","S")}  ${fmtLL(ll[1],"E","W")}`:"";
+}
+function queueHover(e){
+  hoverAt={x:e.clientX,y:e.clientY};
+  if(!hoverScheduled){hoverScheduled=true;requestAnimationFrame(runHover)}
+}
+function bindCanvas(){
+  cv.addEventListener("pointerdown",e=>{
+    if(e.pointerType==="mouse"&&e.button!==0)return;
+    drag={id:e.pointerId,x:e.clientX,y:e.clientY};moved=0;autoSpin=false;flyState=null;
+    try{cv.setPointerCapture(e.pointerId)}catch(_){}
+    cv.style.cursor="grabbing";
+  });
+  cv.addEventListener("pointermove",e=>{
+    if(drag&&drag.id===e.pointerId){
+      if(!W)return;
+      const dx=e.clientX-drag.x,dy=e.clientY-drag.y;
+      moved+=Math.abs(dx)+Math.abs(dy);
+      drag.x=e.clientX;drag.y=e.clientY;
+      const k=.0055*W.cam.position.z/3.6;
+      W.g.quaternion.premultiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(dy*k,dx*k,0,"XYZ")));
+      requestFrame();
+      return;
+    }
+    if(!drag)queueHover(e);
+  });
+  const endDrag=(e,tap)=>{
+    if(!drag||drag.id!==e.pointerId)return;
+    const wasTap=tap&&moved<6;
+    drag=null;cv.style.cursor=measure?"crosshair":"grab";
+    if(wasTap)onTap(e);
+  };
+  cv.addEventListener("pointerup",e=>endDrag(e,true));
+  cv.addEventListener("pointercancel",e=>{if(drag&&drag.id===e.pointerId){drag=null;moved=0;cv.style.cursor="grab"}});
+  cv.addEventListener("lostpointercapture",e=>{if(drag&&drag.id===e.pointerId){drag=null;moved=0;cv.style.cursor="grab"}});
+  cv.addEventListener("pointerleave",()=>{$("tip").style.opacity="0"});
+  cv.addEventListener("wheel",e=>{
+    e.preventDefault();if(!W)return;
+    autoSpin=false;
+    W.cam.position.z=Math.min(6,Math.max(1.25,W.cam.position.z*(1+e.deltaY*.001)));
+    requestFrame();
+  },{passive:false});
+  cv.addEventListener("keydown",e=>{
+    if(!W)return;
+    const k={ArrowLeft:[0,-1],ArrowRight:[0,1],ArrowUp:[-1,0],ArrowDown:[1,0]}[e.key];
+    if(k){
+      autoSpin=false;flyState=null;
+      W.g.quaternion.premultiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(k[0]*.08,k[1]*.08,0)));
+      requestFrame();e.preventDefault();
+    }else if(e.key==="+"||e.key==="="){W.cam.position.z=Math.max(1.25,W.cam.position.z*.9);requestFrame()}
+    else if(e.key==="-"){W.cam.position.z=Math.min(6,W.cam.position.z*1.1);requestFrame()}
+    else if(e.key==="Escape"){closePanel("")}
+  });
+  cv.addEventListener("webglcontextlost",e=>{
+    e.preventDefault();ctxLost=true;
+    setSt("The 3D view lost its graphics context. Waiting for the browser to restore it.");
+  });
+  cv.addEventListener("webglcontextrestored",()=>{
+    ctxLost=false;setSt("The 3D view was restored.");requestFrame();
+  });
+}
+function bindUI(){
+  q.addEventListener("input",runSearch);
+  q.addEventListener("keydown",e=>{
+    if(e.key==="ArrowDown"){moveActive(1);e.preventDefault()}
+    else if(e.key==="ArrowUp"){moveActive(-1);e.preventDefault()}
+    else if(e.key==="Enter"&&activeIdx>=0){chooseResult(activeIdx)}
+    else if(e.key==="Escape"){q.value="";runSearch()}
+  });
+  $("yr").addEventListener("input",e=>applyYear(+e.target.value));
+  $("reset").addEventListener("click",()=>{
+    closePanel("Global view.");autoSpin=true;
+    if(W){flyState=null;W.g.quaternion.identity();W.cam.position.z=3.6;requestFrame()}
+  });
+  $("meas").addEventListener("click",e=>{
+    measure=!measure;
+    e.currentTarget.setAttribute("aria-pressed",String(measure));
+    cv.style.cursor=measure?"crosshair":"grab";
+    if(measure)setMres("Pick a first point on the surface.");else clearMeasure();
+  });
+  $("grid").addEventListener("click",e=>{
+    if(!W)return;
+    W.grid.visible=!W.grid.visible;
+    e.currentTarget.setAttribute("aria-pressed",String(W.grid.visible));
+    requestFrame();
+  });
+  $("shot").addEventListener("click",()=>{
+    if(!W){setSt("Image export needs the 3D view, which is unavailable.");return}
+    try{
+      W.ren.render(W.sc,W.cam);
+      const a=document.createElement("a");a.href=cv.toDataURL("image/png");a.download="luna-moon.png";a.click();
+    }catch(e){setSt("Could not save the image: "+e.message)}
+  });
+  $("about").addEventListener("click",()=>{
+    const s=$("side");
+    const fx=[["Mean radius","1,737.4 km"],["Surface gravity","1.62 m/s²"],["Escape velocity","2.38 km/s"],["Bulk density","3,344 kg/m³"],["Mean distance from Earth","384,400 km"],["Sidereal orbit period","27.32 days"],["Synodic period","29.53 days"]];
+    const link=(u,t)=>el("li",{},[el("a",{href:u,target:"_blank",rel:"noopener",text:t})]);
+    const close=el("button",{"aria-label":"Close panel",text:"✕",onclick:()=>closePanel("")});
+    close.style.float="right";
+    sel=null;showHi(null);
+    s.replaceChildren(close,el("h2",{text:"About LUNA",tabindex:"-1"}),el("div",{class:"tag",text:"Lunar atlas"}),
+      el("p",{text:"LUNA draws the Moon from NASA Moon Trek map tiles and lists named features and landing sites from the USGS Gazetteer and curated records. Each record shows its source and coordinate status."}),
+      el("dl",{class:"num"},fx.flatMap(r=>[el("dt",{text:r[0]}),el("dd",{text:r[1]})])),
+      el("p",{class:"mute",text:"These physical values were typed in by hand. Check them against NASA's Moon Fact Sheet before quoting them."}),
+      el("strong",{text:"Data sources"}),
+      el("ul",{},[link("https://trek.nasa.gov/moon/","NASA Moon Trek (map tiles)"),link("https://planetarynames.wr.usgs.gov/","USGS Gazetteer of Planetary Nomenclature"),link("https://nssdc.gsfc.nasa.gov/planetary/factsheet/moonfact.html","NASA NSSDC Moon Fact Sheet"),link("https://www.lroc.asu.edu/","LROC (Arizona State University)")]),
+      el("strong",{text:"Reading the status labels"}),
+      el("ul",{},[el("li",{text:"Source-reported: a value seen in a published excerpt. Not re-checked against the full source."}),el("li",{text:"Approximate: a rounded or secondary value."}),el("li",{text:"Unverified: typed by hand. Not checked."})]),
+      el("strong",{text:"Limits"}),
+      el("ul",{},[el("li",{text:"Imagery is draped on a smooth sphere. No elevation is applied, so the surface is not 3D terrain."}),el("li",{text:"No spacecraft or rover positions are live. Rover entries show historical last-known locations."})]));
+    s.classList.add("open");s.focus({preventScroll:true});
+  });
+  window.addEventListener("hashchange",applyHash);
+  window.addEventListener("resize",resize);
+  document.addEventListener("visibilitychange",()=>{if(!document.hidden){looping=false;requestFrame()}});
+}
+
+/* ===== Start ===== */
+(function start(){
+  setupLayers();
+  bindUI();
+  W=initWebGL();
+  if(W){
+    W.g.add(W.hi);
+    bindCanvas();
+    rebuildFeatures();
+    rebuildMissions();
+    resize();
+    W.ren.domElement.setAttribute("aria-label","Interactive 3D Moon");
+    requestFrame();
+    setSt("Placeholder grey sphere until imagery loads. It has no elevation applied.");
+    loadLayer(LAYERS.wac);
+  }else{
+    cv.classList.add("hidden");
+    setSt(typeof THREE==="undefined"
+      ? "Three.js did not load, so the 3D view is unavailable. Search and the record panels still work."
+      : "WebGL is unavailable in this browser, so the 3D view cannot be shown. Search and the record panels still work.");
+  }
+  applyYear(2026);
+  applyHash();
+  loadGazetteer();
+})();
+</script>
+</body></html>
